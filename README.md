@@ -1,8 +1,12 @@
 # Deepfake Recognition Using CNN
 
-This repository contains Team 6’s cybersecurity analytics project. The goal is to develop a simple deepfake-recognition system using a convolutional neural network (CNN).
+This repository contains Team 6’s cybersecurity analytics project. The goal is to develop a deepfake-recognition system using a convolutional neural network (CNN).
 
 The model will examine facial images or selected video frames and classify them as likely real or manipulated.
+
+## Project Proposal
+
+[View the project proposal](Deepfake_Recognition_Project_Proposal.pdf)
 
 ## Why This Project Matters
 
@@ -14,7 +18,7 @@ Deepfakes can be used to:
 * Create harmful images for blackmail
 * Spread false or misleading information
 
-Our system is intended to provide an early warning before a person trusts or shares suspicious media. Its result should support human review and should not be treated as legal proof.
+Our system is intended to provide an early warning before someone trusts or shares suspicious media. The result will support human review and should not be treated as legal proof.
 
 ## Project Objectives
 
@@ -28,7 +32,7 @@ Our system is intended to provide an early warning before a person trusts or sha
 
 ## Dataset
 
-We plan to use the FaceForensics++ research dataset. The project will use an approved subset because the complete dataset is too large for a two-person class project.
+We plan to use the FaceForensics++ research dataset. We will use an approved subset because the complete dataset is too large for a two-person class project.
 
 The dataset files will not be uploaded to this repository. Anyone using the dataset must request access and follow its terms of use.
 
