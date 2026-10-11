@@ -4,9 +4,15 @@ This repository contains Team 6’s cybersecurity analytics project. The goal is
 
 The model will examine facial images or selected video frames and classify them as likely real or manipulated.
 
-## Project Proposal
+## Project Documents
 
-[View the project proposal](Deepfake_Recognition_Project_Proposal.pdf)
+* [Project proposal](Deepfake_Recognition_Project_Proposal.pdf)
+* [Interim progress report 1](Deepfake_Recognition_Interim_Report_1.pdf)
+
+## Repository Structure
+
+* `notebooks/FFpp_EDA_Colab.ipynb`: executed Colab notebook (data audit, EDA, baselines) with outputs
+* `src/ff_eda.py`: pipeline script used by the notebook (manifest, quality and leakage checks, EDA figures, baselines)
 
 ## Why This Project Matters
 
@@ -32,7 +38,7 @@ Our system is intended to provide an early warning before someone trusts or shar
 
 ## Dataset
 
-We plan to use the FaceForensics++ research dataset. We will use an approved subset because the complete dataset is too large for a two-person class project.
+We use the FaceForensics++ research dataset (c23, all 5,000 videos). Official access has been granted; because the official servers were unreachable on Oct 7-11, 2026, the interim analysis ran on a 1,250-video subset of a Kaggle re-upload and will be re-run on the official download.
 
 The dataset files will not be uploaded to this repository. Anyone using the dataset must request access and follow its terms of use.
 
@@ -80,7 +86,7 @@ To reduce these risks, we will:
 
 ## Project Status
 
-This project is currently in the proposal and planning stage. Code, notebooks, results, and demonstration instructions will be added as the project develops.
+Interim Report 1 (Oct 11, 2026): the data pipeline, quality and leakage checks, EDA and two baselines are done on a 1,250-video subset. Simple frame-difference features barely beat chance (ROC-AUC 0.53), so temporal evidence has to be learned (MobileNetV2 + GRU). Next milestone: face crops for all 5,000 videos and the simple CNN baseline by Oct 18, 2026.
 
 ## AI Use Disclosure
 
