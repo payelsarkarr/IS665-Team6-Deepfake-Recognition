@@ -11,8 +11,41 @@ The model will examine facial images or selected video frames and classify them 
 
 ## Repository Structure
 
-* `notebooks/FFpp_EDA_Colab.ipynb`: executed Colab notebook (data audit, EDA, baselines) with outputs
-* `src/ff_eda.py`: pipeline script used by the notebook (manifest, quality and leakage checks, EDA figures, baselines)
+```
+notebooks/
+  FFpp_EDA_Colab.ipynb     Interim Report 1: data audit, EDA, baselines B0/B1 (executed, frozen)
+  01_prepare_data.ipynb    videos -> face clips, stored once in Drive (restartable)
+  02_train.ipynb           training with a checkpoint every epoch and automatic resume
+  03_evaluate.ipynb        threshold on validation, metrics on test, per method
+src/
+  ff_eda.py                script of the interim analysis (used by FFpp_EDA_Colab.ipynb)
+  ffpp/                    shared code of notebooks 01-03
+    data.py                find videos, official splits, leakage exclusion
+    download.py            official download script / Kaggle fallback
+    crops.py               face clips per video (.npz cache)
+    dataset.py             PyTorch datasets (frame or clip samples)
+    models.py              b2_cnn, mnv2, mnv2_gru
+    train.py               training loop, checkpoints, resume
+    metrics.py, evaluate.py
+```
+
+## Training Pipeline (PyTorch, Google Colab)
+
+Each stage writes its result to Google Drive and the next stage builds on it, so a change in one
+stage never forces a rerun of the earlier ones:
+
+```
+01_prepare_data  ->  DRIVE/cache/crops_v1/   4 clips x 16 frames per video, 224 px JPEG (~3 GB for 5,000 videos)
+02_train         ->  DRIVE/runs/<run>/       config.json, metrics.csv, last.pt (every epoch), best.pt
+03_evaluate      ->  DRIVE/runs/<run>/eval/  summary.json, per_method_test.csv, predictions
+```
+
+* Videos are downloaded into the Colab runtime only; Drive keeps the face clips.
+* A run with the same name resumes after its last finished epoch; raising `epochs` trains longer.
+  Changing the model, image size or clip length requires a new run name.
+* Face boxes are fixed per clip, clips are resampled to about 25 fps, and augmentation is identical
+  for all frames of a clip, so the pipeline itself adds no flicker between frames.
+* Validation picks the decision threshold (highest recall with FPR <= 0.2); test is used only at the end.
 
 ## Why This Project Matters
 
@@ -38,15 +71,15 @@ Our system is intended to provide an early warning before someone trusts or shar
 
 ## Dataset
 
-We use the FaceForensics++ research dataset (c23, all 5,000 videos). Official access has been granted; because the official servers were unreachable on Oct 7-11, 2026, the interim analysis ran on a 1,250-video subset of a Kaggle re-upload and will be re-run on the official download.
+We use the FaceForensics++ research dataset (c23, all 5,000 videos). Official access has been granted; because the official servers were unreachable on Oct 10-11, 2026, the interim analysis ran on a 1,250-video subset of a Kaggle re-upload and will be re-run on the official download.
 
 The dataset files will not be uploaded to this repository. Anyone using the dataset must request access and follow its terms of use.
 
 ## Planned Technologies
 
 * Python
-* TensorFlow and Keras
-* MobileNetV2
+* PyTorch / torchvision (switched from Keras after Interim Report 1)
+* MobileNetV2 (+ GRU over frame sequences)
 * OpenCV
 * Scikit-learn
 * Streamlit
