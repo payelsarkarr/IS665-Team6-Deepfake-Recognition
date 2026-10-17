@@ -32,9 +32,16 @@ DEFAULT_CFG = dict(
     run_name="b2_cnn_v1", model="b2_cnn", pretrained=True, img_size=224, clip_len=16,
     epochs=10, batch_size=64, lr=1e-3, weight_decay=1e-4, warmup_epochs=1, freeze_backbone_epochs=0,
     samples_per_video=4, eval_frames=8, num_workers=2, seed=665, amp=True, patience=0,
-    max_train_videos=0, max_fpr=0.2,
+    max_train_videos=0, max_fpr=0.2, exclude_methods=(),
 )
-ARCH_KEYS = ("model", "pretrained", "img_size", "clip_len")
+# must not change when a run resumes (architecture + which methods the model may see)
+ARCH_KEYS = ("model", "pretrained", "img_size", "clip_len", "exclude_methods")
+
+
+def drop_methods(idx: pd.DataFrame, methods) -> pd.DataFrame:
+    """Leave-one-method-out: remove the held-out manipulation method(s) from an index."""
+    return idx[~idx.method.isin(list(methods or []))].reset_index(drop=True)
+
 
 
 def _atomic_save(obj, path: Path):
@@ -70,7 +77,8 @@ def _check_config(run_dir: Path, cfg: dict):
     f = run_dir / "config.json"
     if f.exists():
         old = json.load(open(f))
-        diff = {k: (old.get(k), cfg.get(k)) for k in ARCH_KEYS if old.get(k) != cfg.get(k)}
+        norm = lambda d, k: sorted(d.get(k) or []) if k == "exclude_methods" else d.get(k)   # old runs: missing = []
+        diff = {k: (old.get(k), cfg.get(k)) for k in ARCH_KEYS if norm(old, k) != norm(cfg, k)}
         if diff:
             raise SystemExit(f"Run '{cfg['run_name']}' exists with a different architecture {diff}. "
                              "Use a new run_name (or delete the old run folder).")
@@ -79,6 +87,7 @@ def _check_config(run_dir: Path, cfg: dict):
 
 def train(cfg: dict, cache_dir, runs_dir, device=None, log_every=100) -> pd.DataFrame:
     cfg = {**DEFAULT_CFG, **cfg}
+    cfg["exclude_methods"] = sorted(cfg["exclude_methods"] or [])
     device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
     run_dir = Path(runs_dir) / cfg["run_name"]
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -87,6 +96,9 @@ def train(cfg: dict, cache_dir, runs_dir, device=None, log_every=100) -> pd.Data
 
     # ---- data
     tr_idx, va_idx = load_index(cache_dir, "train"), load_index(cache_dir, "val")
+    if cfg["exclude_methods"]:   # LOMO: the held-out method is unseen in training AND in model selection
+        tr_idx, va_idx = drop_methods(tr_idx, cfg["exclude_methods"]), drop_methods(va_idx, cfg["exclude_methods"])
+        print("held out (never seen in train/val):", ", ".join(cfg["exclude_methods"]))
     if cfg["max_train_videos"]:
         tr_idx = tr_idx.sample(min(cfg["max_train_videos"], len(tr_idx)), random_state=cfg["seed"])
     n_real, n_fake = int((tr_idx.label == 0).sum()), int((tr_idx.label == 1).sum())

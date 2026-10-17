@@ -13,6 +13,32 @@ from pathlib import Path
 from .data import METHODS
 
 
+def _run_live(cmd) -> tuple[int, str]:
+    """Run the script, confirm the ToS prompt with a newline and show its progress live
+    (tqdm redraws its bar with carriage returns, so we split on both \\r and \\n)."""
+    p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                         text=True, bufsize=1, env={**__import__("os").environ, "PYTHONUNBUFFERED": "1"})
+    p.stdin.write("\n"); p.stdin.close()
+    buf, tail = "", []
+    while True:
+        ch = p.stdout.read(1)
+        if not ch:
+            break
+        if ch in "\r\n":
+            if buf.strip():
+                tail = (tail + [buf])[-15:]
+                if "%|" in buf:                       # progress bar: overwrite the same line
+                    print("\r" + buf[:120], end="", flush=True)
+                elif not buf.startswith(("By pressing", "http", "***", "Press any key")):
+                    print(buf, flush=True)
+            buf = ""
+        else:
+            buf += ch
+    rc = p.wait()
+    print()
+    return rc, "\n".join(tail)
+
+
 def official(script, out_dir, methods=METHODS, compression="c23", num_videos=0,
              servers=("EU", "EU2", "CA")) -> dict:
     """Run the official script for 'original' + each method. Passing a newline confirms the
@@ -26,11 +52,13 @@ def official(script, out_dir, methods=METHODS, compression="c23", num_videos=0,
             if num_videos:
                 cmd += ["--num_videos", str(num_videos)]
             print(f"== {ds} (server {server})", flush=True)
-            r = subprocess.run(cmd, input="\n", text=True, capture_output=True)
-            if r.returncode == 0:
+            rc, tail = _run_live(cmd)
+            if rc == 0:
                 status[ds] = True
+                servers = (server,) + tuple(s for s in servers if s != server)   # keep using the server that works
                 break
-            print((r.stdout + r.stderr)[-600:])
+            last = tail.strip().splitlines()[-1] if tail.strip() else "no output"
+            print(f"   server {server} failed: {last}")
     return status
 
 

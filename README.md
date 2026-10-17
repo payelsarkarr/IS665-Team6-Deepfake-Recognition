@@ -46,6 +46,10 @@ stage never forces a rerun of the earlier ones:
 * Face boxes are fixed per clip, clips are resampled to about 25 fps, and augmentation is identical
   for all frames of a clip, so the pipeline itself adds no flicker between frames.
 * Validation picks the decision threshold (highest recall with FPR <= 0.2); test is used only at the end.
+* Leave-one-method-out: `EXCLUDE_METHOD` in notebook 02 hides one manipulation method from training and
+  validation (incl. threshold choice); notebook 03 reports seen vs. unseen methods.
+
+Working notes with all settings and results so far: [docs/PROJECT_NOTES_since_interim1.md](docs/PROJECT_NOTES_since_interim1.md).
 
 ## Why This Project Matters
 
