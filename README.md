@@ -17,6 +17,7 @@ notebooks/
   01_prepare_data.ipynb    videos -> face clips, stored once in Drive (restartable)
   02_train.ipynb           training with a checkpoint every epoch and automatic resume
   03_evaluate.ipynb        threshold on validation, metrics on test, per method
+  04_inference.ipynb       score any video file (upload / Drive / FF++ sample), timeline, GPU/CPU latency
 src/
   ff_eda.py                script of the interim analysis (used by FFpp_EDA_Colab.ipynb)
   ffpp/                    shared code of notebooks 01-03
@@ -27,6 +28,7 @@ src/
     models.py              b2_cnn, mnv2, mnv2_gru
     train.py               training loop, checkpoints, resume
     metrics.py, evaluate.py
+    infer.py               end-to-end scoring of a new video file (same preprocessing as training)
 ```
 
 ## Training Pipeline (PyTorch, Google Colab)
@@ -38,6 +40,7 @@ stage never forces a rerun of the earlier ones:
 01_prepare_data  ->  DRIVE/cache/crops_v1/   4 clips x 16 frames per video, 224 px JPEG (~3 GB for 5,000 videos)
 02_train         ->  DRIVE/runs/<run>/       config.json, metrics.csv, last.pt (every epoch), best.pt
 03_evaluate      ->  DRIVE/runs/<run>/eval/  summary.json, per_method_test.csv, predictions
+04_inference     ->  DRIVE/runs/<run>/eval/  inference_examples.csv, latency.json
 ```
 
 * Videos are downloaded into the Colab runtime only; Drive keeps the face clips.

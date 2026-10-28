@@ -165,6 +165,77 @@ viele Fakes fangen) + ROC-AUC/PR-AUC als schwellenunabhängige Vergleichsmaße. 
 - Fehlalarme (FPR) sind der eigentliche Schwachpunkt → Fehleranalyse auf FP-Originale konzentrieren
   (Kompression, Licht, Kopfdrehung, kleine Gesichter?).
 
+
+### Konfusionsmatrizen (Test, Val-Schwelle; 138 real, 544 fake)
+| Modell | TN | FP | FN | TP | FPR | FNR |
+|---|---|---|---|---|---|---|
+| b2_cnn | 99 | 39 | 290 | 254 | 0,283 | 0,533 |
+| mnv2 | 108 | 30 | 19 | 525 | 0,217 | 0,035 |
+| mnv2_gru | 104 | 34 | 13 | 531 | 0,246 | 0,024 |
+
+ROC-AUC pro Methode vs. Originale (Test): b2 DF 0,80 / F2F 0,67 / FS 0,64 / NT 0,62 · mnv2 0,987 / 0,966 / 0,978 / 0,938 ·
+GRU 0,990 / 0,980 / 0,986 / 0,948.
+
+**Basisraten-Effekt (wichtig für Report):** Test hat 80 % Fakes. Bei realistischer Rate von z. B. 1 % Fakes wäre die
+Precision von mnv2 = 0,965·0,01 / (0,965·0,01 + 0,217·0,99) ≈ **4 %**, d. h. ~24 Fehlalarme pro echtem Treffer.
+→ Modell taugt als Vorfilter mit menschlicher Prüfung, nicht als automatische Blockade; FPR ist der Hebel.
+
+## 5b. Leave-one-method-out (17.10.2026, mnv2, gleiche Settings wie mnv2_v1, PATIENCE 3)
+Ausgelassene Methode fehlt in Training **und** Val (also auch bei der Schwellenwahl). Test: 138 real + 136 je Methode.
+
+| Run | best Ep. | Schwelle | AUC bekannte | AUC **unbekannte** | Recall bekannte | Recall **unbekannte** | FPR |
+|---|---|---|---|---|---|---|---|
+| mnv2_lomo_DF | 7 | 0,325 | 0,966 | **0,910** | 0,958 | **0,897** | 0,225 |
+| mnv2_lomo_F2F | 8 | 0,386 | 0,972 | **0,782** | 0,961 | **0,544** | 0,167 |
+| mnv2_lomo_NT | 5 | 0,295 | 0,988 | **0,723** | 0,971 | **0,368** | 0,058 |
+| mnv2_lomo_FS | 8 | 0,302 | 0,971 | **0,414** | 0,975 | **0,132** | 0,217 |
+
+Recall pro Methode in den LOMO-Runs (unbekannte fett): DF-Run DF **0,897**, F2F 0,956, FS 1,000, NT 0,919 ·
+F2F-Run DF 0,978, F2F **0,544**, FS 0,978, NT 0,927 · FS-Run DF 1,000, F2F 0,978, FS **0,132**, NT 0,949 ·
+NT-Run DF 0,978, F2F 0,949, FS 0,985, NT **0,368**.
+
+**Interpretation**
+- Kernbefund: ~0,97 AUC auf bekannten Methoden überschätzt die Leistung gegen neue Fälschungsverfahren stark.
+  Unbekannte Methode: AUC 0,41–0,91, Recall 13–90 %. → zentral für Generalisierung, Threat Model und Limitations.
+- **FaceSwap unbekannt: AUC 0,41 < 0,5** – das Modell hält FS-Fakes für *echter* als Originale. FS ist grafikbasiert
+  (Landmarks + 3D-Modell + Farbangleich), DF ist lernbasiert (Autoencoder). Asymmetrie: FS gesehen → DF unbekannt
+  wird gut erkannt (0,91); DF gesehen → FS nicht. Hypothese (mit Grad-CAM/Beispielen prüfen): Das Modell lernt
+  Autoencoder-/Rendering-Spuren (Unschärfe, Textur), die FS nicht hat.
+- Expression-Methoden (F2F, NT) übertragen nur teilweise aufeinander (0,78 bzw. 0,72).
+- Bekannte Methoden bleiben gleich gut (0,97–0,99) → Ausschluss schadet dem Rest nicht.
+- FPR schwankt zwischen Runs (0,058–0,225), weil jede Schwelle auf einem anderen Val-Set/Modell gewählt wird;
+  die niedrige FPR des NT-Runs (8/138) ist Zufall der Schwellenwahl, nicht als Verbesserung verkaufen.
+- Sicherheitsfolge: Ein Angreifer mit einem neuen Generator umgeht den Detektor mit hoher Wahrscheinlichkeit →
+  Monitoring auf Score-Drift, regelmäßiges Nachtrainieren mit neuen Methoden, externer Datensatz als Pflicht-Test.
+- Offen: GRU-LOMO für FS/NT (hilft Zeitinformation bei unbekannten Methoden?), externer Datensatz (FaceShifter ist
+  ebenfalls Identity-Swap, aber lernbasiert → guter nächster Test).
+
+
+## 5c. Fehleranalyse (17.10.2026, Zelle 7 in Notebook 03)
+Bilder: `runs/<run>/eval/error_examples.png` + `.csv` in Drive (lokal: outputs/figures/). FF++-Frames **nicht** ins
+öffentliche Repo; im Report-PDF als Abbildung mit Quellenangabe ok. Personen im Report nicht namentlich nennen.
+
+**mnv2_v1 (Schwelle 0,311): 30 Fehlalarme, 19 verpasste Fakes**
+- Top-Fehlalarme (P(fake) 0,79–0,96, Einzelframes bis 0,999 → sehr sicher falsch): Originale 851, 314, 725, 691,
+  035, 257. Alle Nachrichten-/Studio-Material. Auffällig: Kopfbedeckung (851, Kufiya), Brille (314, 691), offener
+  Mund mit Zähnen (725), gesenkter Blick/geschlossene Augen (035). Hypothese: ungewöhnliche Merkmale im
+  Gesichtsbereich bzw. schwache Quellqualität sehen für das Modell wie Manipulationsspuren aus.
+- **851 und 314 sind auch im LOMO-FS-Run die Top-Fehlalarme** → systematisch, nicht zufällig.
+- Alle 6 schlimmsten verpassten Fakes sind Expression-Methoden (F2F, NT), Scores 0,001–0,07.
+  **Paare 073_024 und 233_995 werden in F2F UND NT verpasst** → Fehler hängt am Zielvideo, nicht an der Methode:
+  ruhige, frontale Sprecher, gleichmäßiger Hintergrund, wenig Bewegung → Manipulation klein, kaum Spuren.
+- Sicherheitsfolge FN: Genau das Szenario mit größtem Risiko (ruhiges, frontales Talking-Head-Video, z. B. CEO-
+  Fake im Videocall) ist am schwersten zu erkennen.
+- Sicherheitsfolge FP / RAI: echte Personen mit Kopfbedeckung oder Brille als Fake markiert → möglicher Bias gegen
+  Accessoires/kulturelle Kleidung; mit 6 Beispielen nicht belegbar → als Prüfauftrag (Slice-Analyse) formulieren.
+  Ein Fehlalarm kann Glaubwürdigkeit einer echten Person beschädigen → menschliche Prüfung Pflicht.
+
+**mnv2_lomo_FS (FaceSwap unbekannt; Schwelle 0,302): 30 Fehlalarme, 128 verpasste Fakes**
+- Verpasste FaceSwap-Fakes mit P(fake) ≈ 0,000 (maximal sicher „echt“), obwohl teils **für Menschen sichtbare**
+  Fehler: Farbflecken/Blending-Kante (527_454), dunkles, nicht passendes Gesicht (485_425), verzerrte Züge (376_381).
+- Interpretation: Das Modell nutzt nicht die für Menschen sichtbaren Hinweise, sondern methodenspezifische Spuren der
+  Trainingsmethoden („Shortcut“/Fingerprint-Lernen). Starkes Bild für Generalisierung + Präsentation.
+
 ---
 
 ## 6. Stolperfallen und Lösungen (für Limitations/Repro)
@@ -187,9 +258,9 @@ viele Fakes fangen) + ROC-AUC/PR-AUC als schwellenunabhängige Vergleichsmaße. 
 ## 7. Offene Punkte (Stand 17.10.)
 
 **Für den Status Report (8.11.):**
-1. LOMO (leave-one-method-out): auf 3 Methoden trainieren, auf der 4. testen → Generalisierung auf unbekannte Angriffe. *(wird gerade implementiert)*
-2. Konfusionsmatrizen (Test, Val-Schwelle), FNR, PR-Kurven/ROC-Kurven als Abbildung.
-3. FP/FN-Beispiele mit Bildern + Ursachen + Sicherheitsfolgen.
+1. ~~LOMO~~ erledigt 17.10. (Abschnitt 5b). Optional GRU-LOMO für FS und NT.
+2. ~~Konfusionsmatrizen~~ erledigt (Abschnitt 5). Offen: ROC-/PR-Kurven als Abbildung.
+3. ~~FP/FN-Beispiele~~ erledigt (Abschnitt 5c).
 4. Latenz/Kosten: ms pro Video (Extraktion + Inferenz), Parameter, Trainingszeit.
 5. Externer Datensatz: FaceShifter und/oder DeepFakeDetection (DFD) aus dem FF++-Skript (gleicher Zugang),
    evtl. Celeb-DF (eigener Zugangsantrag nötig). Klassen-Beispieldaten (prüfen, was die Professorin bereitstellt).
@@ -204,3 +275,47 @@ viele Fakes fangen) + ROC-AUC/PR-AUC als schwellenunabhängige Vergleichsmaße. 
 environment/requirements-Datei, Tests, Workflow-Diagramm, optional b2_cnn_v2.
 
 **Aufräumen:** `DRIVE/ffpp_partial` löschen und Papierkorb leeren.
+
+## 8. Status Report Entwurf (17.10.2026)
+- Datei: `03_Interim_Status_Report_F-Grabowski_P-Sarkar.docx/.pdf` (9 Seiten inkl. Refs, Checkliste, Anhang;
+  Abschnitte 1–9 ≈ 6,5 Seiten). Builder: `/home/claude/work/status/fill_status.py` (+ helpers.py, Abbildungen in fig/).
+- Zusätzliche Kennzahlen (Test, Val-Schwelle, Bootstrap 1.000×, Seed 665):
+  b2 P 0,867 R 0,467 F1 0,607 PR-AUC 0,884 ROC 0,684 [0,630; 0,733] ·
+  mnv2 P 0,946 R 0,965 F1 0,955 PR-AUC 0,992 ROC 0,967 [0,952; 0,980] FPR 0,217 [0,155; 0,294] ·
+  GRU P 0,940 R 0,976 F1 0,958 PR-AUC 0,994 ROC 0,976 [0,965; 0,986] FPR 0,246 [0,177; 0,315].
+  Val-FPR an der Schwelle: mnv2 0,17, GRU 0,20. GRU vs. mnv2 nicht signifikant (CIs überlappen).
+- Offene [TODO]s im Entwurf: Feedback IR1, Klassen-Beispieldaten, FaceShifter-Ergebnis, Inferenz-Latenz, Owner im
+  Plan, Team-Beiträge (Payel), AI-Use-Ergänzungen.
+
+## 5d. GRU-LOMO (19.10.2026; Settings wie mnv2_gru_v1, ~5,7 min/Epoche)
+| Run | best Ep. | Schwelle | AUC bekannte | AUC unbekannte [95 %-CI] | Recall unbekannte | FPR |
+|---|---|---|---|---|---|---|
+| mnv2_lomo_FS | 8 | 0,302 | 0,971 | 0,414 [0,351; 0,480] | 0,132 | 0,217 |
+| **mnv2_gru_lomo_FS** | 5 | 0,178 | 0,976 | **0,339** [0,277; 0,400] | 0,059 | 0,203 |
+| mnv2_lomo_NT | 5 | 0,295 | 0,988 | 0,723 [0,660; 0,780] | 0,368 | 0,058 |
+| **mnv2_gru_lomo_NT** | 6 | 0,108 | 0,990 | **0,748** [0,688; 0,806] | 0,559 | 0,196 |
+
+Gepaarter Bootstrap (gleiche Videos, 2.000×), AUC GRU − mnv2 auf der unbekannten Methode:
+FS −0,075 [−0,133; −0,019] (GRU signifikant **schlechter**), NT +0,025 [−0,024; 0,074] (kein Unterschied).
+Recall bei gleicher Test-FPR ≤ 0,2 (nur beschreibend): FS mnv2 0,118 / GRU 0,051; NT 0,537 / 0,603.
+**Fazit:** Zeitliche Modellierung hilft nicht bei unbekannten Methoden. Das GRU lernt die zeitlichen Spuren der
+gesehenen Methoden, kein allgemeines Flackern. Höherer NT-Recall des GRU kommt vor allem vom lockereren
+Arbeitspunkt (FPR 0,20 vs. 0,06). Im Status Report (Abschnitt 5, Tabelle 4) eingetragen. DF/F2F-GRU-LOMO nicht gelaufen.
+
+## 9. Status Report: TODOs bereinigt (27.10.2026)
+- Feedback IR1 (−0,25 Status, −0,25 unoffizielle Daten/Subset, −0,25 Modell nicht gestartet/kleine Val;
+  Wunsch: offizielle Daten, mehr Daten, geplantes Modell, Unsicherheit auf quell-/methodendisjunktem Test) in
+  Abschnitt 1 Punkt für Punkt beantwortet (Val 101 → 655 Videos; Bootstrap-CIs; LOMO = methodendisjunkt).
+- Klassen-Beispieldaten und externer Datensatz (FaceShifter) auf Wunsch überall entfernt; Checkliste „LOMO only“.
+- Owner Abschnitt 9: Flemming = Inferenz/Latenz, Grad-CAM, Demo; Payel = Robustheit + Abwehr, Slice-Analyse
+  Fehlalarme, Repo (requirements, Tests, Model Card, README); beide = Final Report + Slides.
+- Offene TODOs: Latenzwert (Notebook 04), Team-Beiträge/Koordination, AI-Use-Ergänzungen, Commit-Link.
+
+## 10. Notebook 04_inference + src/ffpp/infer.py (27.10.2026)
+- `Detector(run_dir)`: lädt best.pt + Val-Schwelle aus eval/summary.json; `score(video)` = extract_video
+  (gleiche Crops wie Training) → VideoEvalSet (gleiche 8 Frames bzw. Clips wie Notebook 03) → P(fake), Urteil,
+  Score pro Clip/Frame, Zeiten: t_extract (Decodieren + Haar + Crops, CPU), t_prepare, t_model, t_total.
+  Warm-up (CUDA + Haar laden) vor dem Messen.
+- Notebook: Videoquelle `ffpp_sample` (offizielles Skript, erste N pro Klasse; Split-Spalte zeigt Train/Val/Test),
+  `upload` oder `drive_folder`; Zelle 4 Zeitleiste; Zelle 5 Latenz GPU+CPU → runs/<RUN>/eval/latency.json.
+- Lokal mit synthetischen Videos getestet (Frame- und Clip-Modell).
