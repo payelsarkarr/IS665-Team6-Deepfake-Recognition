@@ -319,3 +319,9 @@ Arbeitspunkt (FPR 0,20 vs. 0,06). Im Status Report (Abschnitt 5, Tabelle 4) eing
 - Notebook: Videoquelle `ffpp_sample` (offizielles Skript, erste N pro Klasse; Split-Spalte zeigt Train/Val/Test),
   `upload` oder `drive_folder`; Zelle 4 Zeitleiste; Zelle 5 Latenz GPU+CPU → runs/<RUN>/eval/latency.json.
 - Lokal mit synthetischen Videos getestet (Frame- und Clip-Modell).
+
+## 12. Status Report abgabefertig (27.10.2026)
+- Finale Fassung im Google Doc (1bZuGvKIn0bgKZL7JpWjJXbzJWRzCEodfCHaEnaJzmpA), PDF im Repo als
+  `Deepfake_Recognition_Interim_Report_2.pdf` (10 Seiten inkl. Refs/Checkliste/Anhang). Keine TODOs mehr.
+- Nächste Abgabe 6.12.: Final Report (Template 04) + Präsentation mit Live-Demo. Plan = Tabelle 8 im Report.
+  Offene Entscheidung: Cross-dataset (2 P.) verlangt Klassen-Beispieldaten + externen Datensatz; Vorschlag FaceShifter.
