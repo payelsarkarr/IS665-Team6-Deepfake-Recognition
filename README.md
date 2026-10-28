@@ -128,9 +128,11 @@ To reduce these risks, we will:
 
 Interim Report 1 (Oct 11, 2026): the data pipeline, quality and leakage checks, EDA and two baselines are done on a 1,250-video subset. Simple frame-difference features barely beat chance (ROC-AUC 0.53), so temporal evidence has to be learned (MobileNetV2 + GRU). Next milestone: face crops for all 5,000 videos and the simple CNN baseline by Oct 18, 2026.
 
+Interim Report 2 (Nov 8, 2026): all 5,000 official videos processed; CNN baseline, MobileNetV2 and MobileNetV2 + GRU trained and tested on the official test split (MobileNetV2: ROC-AUC 0.967, recall 0.965 at FPR 0.217; the GRU is not significantly better). Leave-one-method-out shows the main weakness: unseen manipulation methods are caught far less often (FaceSwap held out: ROC-AUC 0.41). Scoring one video takes about 2.5 s, mostly face detection. Next: robustness experiment with a defense, slice analysis of false alarms, Grad-CAM, demo, and repository hardening for the final report (Dec 6, 2026).
+
 ## AI Use Disclosure
 
-ChatGPT and Claude were used for topic brainstorming, proposal organization, review, and wording support. The team will verify all technical claims and citations, revise the work in its own voice, and remain responsible for the final submission.
+ChatGPT and Claude were used for topic brainstorming, proposal organization, review, and wording support. Since Interim Report 1, Claude (Anthropic) also drafted the pipeline code (src/ffpp, notebooks 01–04) and report drafts. The team ran all experiments on the official data, read and tested the code before running it, checked every reported number against the saved run outputs, and remains responsible for the submission.
 
 ## References
 
