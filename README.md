@@ -9,6 +9,8 @@ The model will examine facial images or selected video frames and classify them 
 * [Project proposal](Deepfake_Recognition_Project_Proposal.pdf)
 * [Interim progress report 1](Deepfake_Recognition_Interim_Report_1.pdf)
 * [Interim status report 2](Deepfake_Recognition_Interim_Report_2.pdf)
+* [Final project report](Deepfake_Recognition_Final_Report.pdf)
+* [Final presentation slides](Deepfake_Recognition_Final_Presentation.pdf)
 
 ## Repository Structure
 
