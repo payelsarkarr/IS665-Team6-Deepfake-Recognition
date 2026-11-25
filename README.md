@@ -20,7 +20,7 @@ notebooks/
   03_evaluate.ipynb                 threshold on validation, metrics on test, per method, confusion matrices
   04_inference.ipynb                score any video file, score timeline, GPU/CPU latency
   05_robustness_xai_external.ipynb  defense training, attack test, quality slices, Grad-CAM, FaceShifter test
-  06_demo_app.ipynb                 Gradio demo app (upload video -> verdict, timeline, Grad-CAM) + backup screenshots
+  06_demo_app.ipynb                 Gradio demo app + backup screenshots + export of the laptop demo bundle + laptop bundle
 src/
   ff_eda.py                         script of the interim analysis (used by FFpp_EDA_Colab.ipynb)
   ffpp/                             shared code of notebooks 01-06
@@ -35,6 +35,7 @@ src/
     perturb.py                      post-processing attacks; perturbation-augmented training (defense)
     robustness.py                   attack test, quality slices, external-dataset evaluation
     xai.py                          Grad-CAM
+demo/                               laptop demo app (FastAPI + HTML, CPU, offline); see demo/README.md
 tests/                              pytest checks on synthetic data (CPU, no FF++ videos)
 tools/build_notebooks_final.py      generates notebooks 05-06 and the shared setup cell
 docs/                               project notes, model card

@@ -365,6 +365,20 @@ for f in catalog.file:
         plt.close("all")
     print("saved", f)
 '''),
+("code", '''
+#@title 5 · Export the laptop demo bundle (models + prepared videos) -> demo_bundle.zip
+# Unzip it into the demo/ folder of the repository on your laptop, then run: python demo/app.py
+import zipfile
+bundle = f"{DRIVE_ROOT}/demo_bundle.zip"
+with zipfile.ZipFile(bundle, "w", zipfile.ZIP_DEFLATED) as z:
+    for run in dets:
+        z.write(f"{RUNS_DIR}/{run}/best.pt", f"models/{run}/best.pt")
+        z.write(f"{RUNS_DIR}/{run}/eval/summary.json", f"models/{run}/eval/summary.json")
+    for f in os.listdir(DEMO_DIR):
+        z.write(f"{DEMO_DIR}/{f}", f"videos/{f}")
+print(bundle, f"{os.path.getsize(bundle) / 1e6:.0f} MB")
+from google.colab import files; files.download(bundle)
+'''),
 ]
 
 # ------------------------------------------------------------------ refresh setup in 01-04, write 05-06

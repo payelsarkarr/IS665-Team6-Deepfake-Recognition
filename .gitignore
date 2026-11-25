@@ -8,3 +8,6 @@ faceforensics_download_v4.py
 data/
 cache/
 runs/
+demo/models/
+demo/videos/
+demo_bundle.zip
