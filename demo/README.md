@@ -16,6 +16,18 @@ Runs entirely on your laptop (CPU is enough, about 3 s per video). No Colab and 
 
    The browser opens http://127.0.0.1:7860.
 
+**Record a webcam video:**
+1. Open the **Webcam** tab under *Source*, choose **Enable webcam** and allow camera access in the browser.
+2. Keep one face clearly visible, choose **Start recording**, and record for 3–10 seconds.
+3. Choose **Stop recording**, review the preview, then choose **Analyze video**.
+   **Record again** replaces the recording once the new take is finished; **Cancel** keeps the previous selection.
+
+Recording stops automatically after 30 seconds. No microphone access is requested. The camera is released
+when you stop, cancel, select another video, or leave the page. Recordings stay in browser memory until
+you analyze them; analysis uses temporary files on the local server and removes them afterwards.
+Camera access requires localhost (the default URL above) or HTTPS and a browser supporting `MediaRecorder`.
+Browser recordings are converted locally to a lossless, seekable video using OpenCV; no extra installation is needed.
+
 **Demo script (about 2 minutes):**
 1. *Real · Correct real* → no alert.
 2. *Fake · Deepfakes* → alert; drag across the film strip to show the heatmap on nose and mouth.

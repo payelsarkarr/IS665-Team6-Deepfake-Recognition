@@ -11,6 +11,6 @@ jobs:
       - name: Install (CPU-only PyTorch)
         run: |
           pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-          pip install "opencv-python-headless<5" numpy pandas scikit-learn matplotlib pytest
+          pip install "opencv-python-headless<5" numpy pandas scikit-learn matplotlib pytest fastapi python-multipart httpx
       - name: Run tests (synthetic data, no FF++ videos)
         run: pytest -q tests

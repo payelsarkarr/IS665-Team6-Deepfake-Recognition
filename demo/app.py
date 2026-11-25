@@ -66,6 +66,35 @@ def preview_frames(path: Path, n=14, width=480, attack="none") -> list[str]:
     return out
 
 
+def normalize_recording(source: Path, target: Path) -> None:
+    """Make browser recordings seekable, with a reliable frame count for clip sampling.
+
+    MediaRecorder WebM files can omit duration/frame-count metadata. Decode sequentially
+    and write lossless FFV1 so this step adds no compression artifacts to the analysis.
+    OpenCV's bundled FFmpeg handles this without an external ffmpeg installation.
+    """
+    cap = cv2.VideoCapture(str(source))
+    writer = None
+    try:
+        ok, frame = cap.read()
+        if not ok:
+            raise HTTPException(422, "Could not read the webcam recording. Try recording again or upload a video.")
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        if not np.isfinite(fps) or fps <= 0:
+            fps = 25.0
+        height, width = frame.shape[:2]
+        writer = cv2.VideoWriter(str(target), cv2.VideoWriter_fourcc(*"FFV1"), fps, (width, height))
+        if not writer.isOpened():
+            raise HTTPException(500, "Could not prepare the recording. Install the OpenCV version in demo/requirements.txt.")
+        while ok:
+            writer.write(frame)
+            ok, frame = cap.read()
+    finally:
+        cap.release()
+        if writer is not None:
+            writer.release()
+
+
 def build_app(models_dir: Path, videos_dir: Path) -> FastAPI:
     dets = {}
     for run in MODELS:
@@ -108,6 +137,8 @@ def build_app(models_dir: Path, videos_dir: Path) -> FastAPI:
             r = d.score(path, attack=attack, explain=True)
             raw = raw or r
             if r["status"] != "ok":
+                if r["status"] == "too_short":
+                    raise HTTPException(422, "The video is too short. Record at least 3 seconds with a clearly visible face.")
                 raise HTTPException(422, "No face found in this video. Try a video with one clearly visible, frontal face."
                                     if r["status"] == "no_face" else f"Could not read the video ({r['status']}).")
             results.append(dict(run=run, name=MODELS[run], score=round(r["score"], 4), threshold=round(r["threshold"], 4),
@@ -122,7 +153,8 @@ def build_app(models_dir: Path, videos_dir: Path) -> FastAPI:
             preview=preview_frames(path, attack=attack)))
 
     @app.post("/api/analyze")
-    async def analyze(attack: str = Form("none"), example: str = Form(""), file: UploadFile | None = File(None)):
+    async def analyze(attack: str = Form("none"), example: str = Form(""), file: UploadFile | None = File(None),
+                      webcam: bool = Form(False)):
         if example:
             path = videos_dir / Path(example).name
             if not path.exists():
@@ -131,14 +163,19 @@ def build_app(models_dir: Path, videos_dir: Path) -> FastAPI:
             truth = row.iloc[0][["truth", "method", "why"]].to_dict() if len(row) else None
             return analyze_path(path, attack, truth)
         if file is None:
-            raise HTTPException(400, "Choose an example or upload a video.")
+            raise HTTPException(400, "Choose an example, upload a video, or record with your webcam.")
         suffix = Path(file.filename or "upload.mp4").suffix or ".mp4"
-        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-            tmp.write(await file.read())
         try:
-            return analyze_path(Path(tmp.name), attack, None)
+            with tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / ("upload" + suffix)
+                path.write_bytes(await file.read())
+                if webcam:
+                    normalized = Path(tmp) / "recording.avi"
+                    normalize_recording(path, normalized)
+                    path = normalized
+                return analyze_path(path, attack, None)
         finally:
-            Path(tmp.name).unlink(missing_ok=True)
+            await file.close()
 
     return app
 
