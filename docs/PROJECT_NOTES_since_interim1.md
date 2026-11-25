@@ -321,3 +321,37 @@ data and an external dataset; LOMO alone does not cover it. Proposal: FaceShifte
 same pipeline, about 1–2 h in Colab).
 
 **Cleanup:** delete `DRIVE/ffpp_partial` and empty the Drive trash. Optional: b2_cnn_v2 (30 epochs, samples 8).
+
+
+---
+
+## 10. Final experiments (Nov 25, 2026, notebook 05)
+
+**Defense model `mnv2_robust`:** mnv2_v1 settings + 50% of training samples perturbed (JPEG q15–60, downscale 0.2–0.7,
+blur σ0.8–3.5; noise held out). 8 epochs, 1.35 min/epoch. Test: ROC-AUC 0.965, recall 0.961, FPR 0.232 (thr 0.304).
+
+**Attack test (all test videos perturbed, clean validation threshold):**
+
+| Attack | mnv2_v1 recall / FPR | mnv2_robust recall / FPR |
+|---|---|---|
+| none | 0.965 / 0.217 | 0.961 / 0.232 |
+| JPEG q50 / q30 / q15 | 0.947 / 0.341 · 0.908 / 0.304 · **0.506** / 0.116 | 0.961 / 0.399 · 0.961 / 0.514 · **0.956** / 0.580 |
+| downscale ×0.5 / ×0.25 | 1.000 / **0.986** · 1.000 / 1.000 | 0.961 / **0.290** · 0.965 / 0.565 |
+| blur σ1.5 / σ3 | 1.000 / 1.000 · 1.000 / 1.000 | 0.954 / 0.406 · 0.980 / 0.819 |
+| noise 5 / 10 (held out) | 0.998 / 0.993 · 1.000 / 0.993 | 1.000 / 0.964 · 1.000 / 0.993 |
+
+Mean ROC-AUC over the 9 attacks: 0.719 → 0.866. Two failure modes: heavy JPEG = evasion; blur/downscale/noise =
+alarm flood (median real-video score 0.10 → 0.98–1.00). Defense fixes what it was trained on, not noise.
+
+**FaceShifter (external, test split, 136 fakes + 138 FF++ test originals):** ROC-AUC mnv2_v1 0.750 [0.688, 0.808],
+recall 0.559 at FPR 0.217; robust 0.692 (paired Δ −0.059 [−0.088, −0.030]); GRU 0.657 (Δ −0.093); LOMO-FS 0.716.
+
+**Quality slices (138 real test videos, tertiles):** FPR blurry 0.348 [0.227, 0.492] vs. sharp 0.130 [0.061, 0.257];
+brightness/contrast no clear effect. Robust model: 0.326 vs. 0.130.
+
+**Grad-CAM:** evidence on nose/mouth for all methods (average maps); same FaceSwap videos: model with FaceSwap
+focuses on the central face (P 0.81–1.00), model without FaceSwap looks at background edges (P 0.00).
+
+**Final model choice:** mnv2_robust (same clean accuracy, far more robust; cost: FaceShifter −0.06 AUC).
+Final report + slides drafted (Nov 25); open: course-sample question, team-role confirmation, demo screenshot.
+Model card: docs/MODEL_CARD.md.
