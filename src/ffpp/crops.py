@@ -13,9 +13,10 @@ are skipped.
 from __future__ import annotations
 
 import json
+import multiprocessing as mp
 import os
+import sys
 import time
-from multiprocessing import Pool
 from pathlib import Path
 
 import cv2
@@ -153,7 +154,10 @@ def extract_all(man: pd.DataFrame, cache_dir, cfg: dict | None = None, workers: 
     jobs = [(r.video_id, r.path, str(cache_dir / "videos" / cache_name(r.video_id)), cfg) for r in man.itertuples()]
     status, t0 = {}, time.time()
     workers = workers or os.cpu_count() or 1
-    with Pool(workers) as pool:
+    # "spawn": fresh worker processes. Forking a process that already ran PyTorch/OpenCV threads
+    # (e.g. notebook 05 after training) can deadlock; "fork" is kept only when torch is not loaded.
+    ctx = mp.get_context("fork" if "torch" not in sys.modules else "spawn")
+    with ctx.Pool(workers) as pool:
         for i, (vid, st) in enumerate(pool.imap_unordered(_job, jobs, chunksize=4), 1):
             status[vid] = st
             if i % log_every == 0 or i == len(jobs):

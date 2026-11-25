@@ -14,23 +14,45 @@ The model will examine facial images or selected video frames and classify them 
 
 ```
 notebooks/
-  FFpp_EDA_Colab.ipynb     Interim Report 1: data audit, EDA, baselines B0/B1 (executed, frozen)
-  01_prepare_data.ipynb    videos -> face clips, stored once in Drive (restartable)
-  02_train.ipynb           training with a checkpoint every epoch and automatic resume
-  03_evaluate.ipynb        threshold on validation, metrics on test, per method
-  04_inference.ipynb       score any video file (upload / Drive / FF++ sample), timeline, GPU/CPU latency
+  FFpp_EDA_Colab.ipynb              Interim Report 1: data audit, EDA, baselines B0/B1 (executed, frozen)
+  01_prepare_data.ipynb             videos -> face clips, stored once in Drive (restartable)
+  02_train.ipynb                    training with a checkpoint every epoch and automatic resume (LOMO option)
+  03_evaluate.ipynb                 threshold on validation, metrics on test, per method, confusion matrices
+  04_inference.ipynb                score any video file, score timeline, GPU/CPU latency
+  05_robustness_xai_external.ipynb  defense training, attack test, quality slices, Grad-CAM, FaceShifter test
+  06_demo_app.ipynb                 Gradio demo app (upload video -> verdict, timeline, Grad-CAM) + backup screenshots
 src/
-  ff_eda.py                script of the interim analysis (used by FFpp_EDA_Colab.ipynb)
-  ffpp/                    shared code of notebooks 01-03
-    data.py                find videos, official splits, leakage exclusion
-    download.py            official download script / Kaggle fallback
-    crops.py               face clips per video (.npz cache)
-    dataset.py             PyTorch datasets (frame or clip samples)
-    models.py              b2_cnn, mnv2, mnv2_gru
-    train.py               training loop, checkpoints, resume
-    metrics.py, evaluate.py
-    infer.py               end-to-end scoring of a new video file (same preprocessing as training)
+  ff_eda.py                         script of the interim analysis (used by FFpp_EDA_Colab.ipynb)
+  ffpp/                             shared code of notebooks 01-06
+    data.py                         find videos, official splits, leakage exclusion
+    download.py                     official download script (whole sets or single videos) / Kaggle fallback
+    crops.py                        face clips per video (.npz cache)
+    dataset.py                      PyTorch datasets (frame or clip samples)
+    models.py                       b2_cnn, mnv2, mnv2_gru
+    train.py                        training loop, checkpoints, resume
+    metrics.py, evaluate.py         metrics, validation threshold, test evaluation
+    infer.py                        end-to-end scoring of a new video file (same preprocessing as training)
+    perturb.py                      post-processing attacks; perturbation-augmented training (defense)
+    robustness.py                   attack test, quality slices, external-dataset evaluation
+    xai.py                          Grad-CAM
+tests/                              pytest checks on synthetic data (CPU, no FF++ videos)
+tools/build_notebooks_final.py      generates notebooks 05-06 and the shared setup cell
+docs/                               project notes, model card
+requirements.txt                    dependencies
 ```
+
+## How to Reproduce
+
+1. **Data access.** Request FaceForensics++ access (https://github.com/ondyari/FaceForensics). Put the download
+   script you receive in your Google Drive as `IS665_Deepfake/faceforensics_download_v4.py`. Never commit it or
+   any video, face crop or model weight (`.gitignore` blocks them).
+2. **Colab.** Open each notebook from GitHub (*File → Open notebook → GitHub*), choose a T4 GPU and run the
+   setup cell first; it mounts Drive, pulls this repository and installs OpenCV 4 if needed.
+3. **Order.** 01 (download + face clips, ~1 night) → 02 (one run per model; settings in the notebook header and
+   in each run's `config.json`) → 03 (evaluation) → 04 (latency) → 05 (robustness, Grad-CAM, FaceShifter) →
+   06 (demo). Every stage resumes after a disconnect.
+4. **Tests.** `pip install -r requirements.txt && pytest -q tests` (CPU, synthetic data). They also run on every
+   push (GitHub Actions).
 
 ## Training Pipeline (PyTorch, Google Colab)
 
@@ -42,16 +64,21 @@ stage never forces a rerun of the earlier ones:
 02_train         ->  DRIVE/runs/<run>/       config.json, metrics.csv, last.pt (every epoch), best.pt
 03_evaluate      ->  DRIVE/runs/<run>/eval/  summary.json, per_method_test.csv, predictions
 04_inference     ->  DRIVE/runs/<run>/eval/  inference_examples.csv, latency.json
+05_robustness    ->  DRIVE/runs/mnv2_robust/, runs/<run>/eval/robustness_test.csv, external_FaceShifter.json,
+                     DRIVE/report/ (Grad-CAM figures, quality slices), DRIVE/demo_videos/
+06_demo_app      ->  DRIVE/demo_backup/ (screenshots for the presentation)
 ```
 
 * Videos are downloaded into the Colab runtime only; Drive keeps the face clips.
 * A run with the same name resumes after its last finished epoch; raising `epochs` trains longer.
-  Changing the model, image size or clip length requires a new run name.
+  Changing the model, image size, clip length or held-out method requires a new run name.
 * Face boxes are fixed per clip, clips are resampled to about 25 fps, and augmentation is identical
   for all frames of a clip, so the pipeline itself adds no flicker between frames.
 * Validation picks the decision threshold (highest recall with FPR <= 0.2); test is used only at the end.
 * Leave-one-method-out: `EXCLUDE_METHOD` in notebook 02 hides one manipulation method from training and
   validation (incl. threshold choice); notebook 03 reports seen vs. unseen methods.
+* Defense: `mnv2_robust` = `mnv2_v1` trained with random JPEG re-compression, downscaling and blur on half of the
+  samples; Gaussian noise is held out to test whether the defense transfers to an unseen perturbation.
 
 Working notes with all settings and results so far: [docs/PROJECT_NOTES_since_interim1.md](docs/PROJECT_NOTES_since_interim1.md).
 

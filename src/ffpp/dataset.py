@@ -20,6 +20,8 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
+from .perturb import random_perturb
+
 MEAN = np.array([0.485, 0.456, 0.406], np.float32)   # ImageNet statistics (torchvision weights)
 STD = np.array([0.229, 0.224, 0.225], np.float32)
 
@@ -94,10 +96,11 @@ class TrainSet(Dataset):
     """`samples_per_video` random samples per video and epoch."""
 
     def __init__(self, idx: pd.DataFrame, cache_dir, mode="frame", img_size=224, clip_len=16,
-                 samples_per_video=4, augment_data=True, seed=0):
+                 samples_per_video=4, augment_data=True, seed=0, robust_aug=0.0, robust_kinds=("jpeg", "down", "blur")):
         self.idx, self.dir, self.mode = idx.reset_index(drop=True), Path(cache_dir), mode
         self.img_size, self.clip_len, self.spv, self.aug = img_size, clip_len, samples_per_video, augment_data
         self.seed, self.epoch = seed, 0
+        self.robust_aug, self.robust_kinds = robust_aug, tuple(robust_kinds)   # defense: perturbation-augmented training
 
     def set_epoch(self, epoch: int):
         self.epoch = epoch
@@ -118,6 +121,8 @@ class TrainSet(Dataset):
             frames = fc.frames(clip, range(t0, t0 + L))
         if self.aug:
             frames = augment(frames, rng)
+        if self.robust_aug and rng.random() < self.robust_aug:
+            frames = np.ascontiguousarray(random_perturb(frames, rng, self.robust_kinds))
         x = to_tensor(frames, self.img_size)
         if self.mode == "frame":
             x = x[0]
@@ -128,9 +133,14 @@ class VideoEvalSet(Dataset):
     """One item = all evaluation samples of one video (frames or clips), no augmentation.
     frame mode: `eval_frames` frames spread over all clips; clip mode: the first clip_len frames of each clip."""
 
-    def __init__(self, idx: pd.DataFrame, cache_dir, mode="frame", img_size=224, clip_len=16, eval_frames=8):
+    def __init__(self, idx: pd.DataFrame, cache_dir, mode="frame", img_size=224, clip_len=16, eval_frames=8,
+                 transform=None):
         self.idx, self.dir, self.mode = idx.reset_index(drop=True), Path(cache_dir), mode
         self.img_size, self.clip_len, self.eval_frames = img_size, clip_len, eval_frames
+        self.transform = transform        # e.g. perturb.make_transform("jpeg_30") for the robustness test
+
+    def _t(self, frames):
+        return self.transform(frames) if self.transform else frames
 
     def __len__(self):
         return len(self.idx)
@@ -142,8 +152,8 @@ class VideoEvalSet(Dataset):
             total = fc.n_clips * fc.T
             picks = np.linspace(0, total - 1, min(self.eval_frames, total)).astype(int)
             frames = np.stack([fc.frame(p // fc.T, p % fc.T) for p in picks])
-            x = to_tensor(frames, self.img_size)                        # (F, 3, H, W)
+            x = to_tensor(self._t(frames), self.img_size)                        # (F, 3, H, W)
         else:
             L = min(self.clip_len, fc.T)
-            x = torch.stack([to_tensor(fc.frames(c, range(L)), self.img_size) for c in range(fc.n_clips)])  # (C, L, 3, H, W)
+            x = torch.stack([to_tensor(self._t(fc.frames(c, range(L))), self.img_size) for c in range(fc.n_clips)])  # (C, L, 3, H, W)
         return x, float(row.label), row.video_id

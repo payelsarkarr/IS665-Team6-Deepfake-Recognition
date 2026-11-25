@@ -6,6 +6,7 @@ as a score in notebook 03. Every step is timed for the latency report.
 
     det = Detector(f"{RUNS_DIR}/mnv2_v1")          # loads best.pt + threshold from eval/summary.json
     r = det.score("video.mp4")                    # dict: score, verdict, per-clip scores, timings
+    r = det.score("video.mp4", attack="jpeg_30", explain=True)   # simulated post-processing + Grad-CAM
 """
 from __future__ import annotations
 
@@ -21,7 +22,9 @@ import torch
 from .crops import DEFAULTS, _cascade, extract_video
 from .dataset import FrameCache, VideoEvalSet, to_tensor
 from .models import CLIP_MODELS
+from .perturb import make_transform
 from .train import load_trained
+from .xai import explain_frames
 
 
 def _sync(device):
@@ -62,11 +65,16 @@ class Detector:
         _cascade()                                   # load the face detector once, not inside the timing
         self.warm = True
 
-    def score(self, path, timeline=True) -> dict:
+    def score(self, path, timeline=True, attack="none", explain=False) -> dict:
+        """attack: a perturb.ATTACKS name applied to the face frames before the model (simulates
+        re-compression etc. by an attacker); explain: Grad-CAM overlay for the middle frame of each clip."""
         path = Path(path)
+        tf = make_transform(attack)
+        prep = tf or (lambda f: f)
         if not self.warm:
             self.warmup()
-        out = dict(video=path.name, device=self.device.type, model=self.cfg["model"], threshold=self.threshold)
+        out = dict(video=path.name, device=self.device.type, model=self.cfg["model"], run=self.cfg["run_name"],
+                   threshold=self.threshold, attack=attack)
         with tempfile.TemporaryDirectory() as tmp:
             cache = Path(tmp) / "v.npz"
             t0 = time.perf_counter()
@@ -79,7 +87,7 @@ class Detector:
                 return out
             idx = pd.DataFrame([dict(video_id=path.stem, label=-1, cache_file="v.npz")])
             x, _, _ = VideoEvalSet(idx, tmp, self.mode, self.cfg["img_size"], self.cfg["clip_len"],
-                                   self.cfg["eval_frames"])[0]
+                                   self.cfg["eval_frames"], tf)[0]
             t2 = time.perf_counter()
             _sync(self.device)
             t3 = time.perf_counter()
@@ -93,12 +101,21 @@ class Detector:
             if timeline:                                                           # not timed: for the plot only
                 fc = FrameCache(cache)
                 if self.mode == "frame":
-                    per_frame = [self._forward(to_tensor(fc.frames(c, range(fc.T)), self.cfg["img_size"]))
+                    per_frame = [self._forward(to_tensor(prep(fc.frames(c, range(fc.T))), self.cfg["img_size"]))
                                  for c in range(fc.n_clips)]
                     out["frame_scores"] = [f.tolist() for f in per_frame]
                     out["clip_scores"] = [float(f.mean()) for f in per_frame]
                 else:
                     out["clip_scores"] = p.tolist()
-                out["clip_faces"] = [fc.frame(c, fc.T // 2) for c in range(fc.n_clips)]
+                out["clip_faces"] = [prep(fc.frame(c, fc.T // 2)[None])[0] for c in range(fc.n_clips)]
                 out["clip_start_s"] = (np.load(cache)["starts"] / info["fps"]).round(1).tolist()
+            if explain:
+                fc = FrameCache(cache)
+                if self.mode == "frame":
+                    mids = prep(np.stack([fc.frame(c, fc.T // 2) for c in range(fc.n_clips)]))
+                    out["clip_cams"], _, _ = explain_frames(self.model, mids, self.cfg["img_size"], False, self.device)
+                else:
+                    L = min(self.cfg["clip_len"], fc.T)
+                    out["clip_cams"] = [explain_frames(self.model, prep(fc.frames(c, range(L))), self.cfg["img_size"],
+                                                       True, self.device)[0][L // 2] for c in range(fc.n_clips)]
         return out

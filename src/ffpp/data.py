@@ -32,14 +32,16 @@ def load_official_meta(meta_dir: str | Path):
     return split_of, youtube_of, pairs
 
 
-def classify(path: Path, root: Path, methods=METHODS, compression="c23"):
-    """(method, target_id, source_id) for a video file, or (None, reason, None)."""
+def classify(path: Path, root: Path, methods=METHODS, compression="c23", skip=SKIP_PARTS):
+    """(method, target_id, source_id) for a video file, or (None, reason, None).
+    `skip`: folder names that are ignored (FaceShifter is kept out of the main data; pass
+    skip=("deepfakedetection", "actors") and methods=["FaceShifter"] to read it as an external set)."""
     parts = [p.lower() for p in path.relative_to(root).parts[:-1]]
     joined = "/".join(parts)
     m = ID_RE.match(path.stem)
     if not m:
         return None, "file name not FF++ style", None
-    if any(k in joined for k in SKIP_PARTS):
+    if any(k in joined for k in skip):
         return None, "subset not used (DeepFakeDetection/FaceShifter)", None
     if any(p in ({"c0", "raw", "c23", "c40"} - {compression}) for p in parts):
         return None, "other compression level", None
@@ -65,7 +67,7 @@ def cross_split_ids(split_of: dict, youtube_of: dict) -> list[str]:
 
 
 def build_manifest(video_root, meta_dir, methods=METHODS, compression="c23",
-                   max_per_class: int = 0) -> pd.DataFrame:
+                   max_per_class: int = 0, skip=SKIP_PARTS) -> pd.DataFrame:
     """One row per usable video.
 
     max_per_class > 0 keeps the first N originals (by id) and, per method, only fakes whose
@@ -76,7 +78,7 @@ def build_manifest(video_root, meta_dir, methods=METHODS, compression="c23",
     bad = set(cross_split_ids(split_of, youtube_of))
     rows, skipped = [], collections.Counter()
     for p in sorted(root.rglob("*.mp4")):
-        method, a, b = classify(p, root, methods, compression)
+        method, a, b = classify(p, root, methods, compression, skip)
         if method is None:
             skipped[a] += 1
             continue

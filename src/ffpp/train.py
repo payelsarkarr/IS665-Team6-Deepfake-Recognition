@@ -33,6 +33,7 @@ DEFAULT_CFG = dict(
     epochs=10, batch_size=64, lr=1e-3, weight_decay=1e-4, warmup_epochs=1, freeze_backbone_epochs=0,
     samples_per_video=4, eval_frames=8, num_workers=2, seed=665, amp=True, patience=0,
     max_train_videos=0, max_fpr=0.2, exclude_methods=(),
+    robust_aug=0.0, robust_kinds=("jpeg", "down", "blur"),   # defense: share of samples with a random perturbation
 )
 # must not change when a run resumes (architecture + which methods the model may see)
 ARCH_KEYS = ("model", "pretrained", "img_size", "clip_len", "exclude_methods")
@@ -103,7 +104,8 @@ def train(cfg: dict, cache_dir, runs_dir, device=None, log_every=100) -> pd.Data
         tr_idx = tr_idx.sample(min(cfg["max_train_videos"], len(tr_idx)), random_state=cfg["seed"])
     n_real, n_fake = int((tr_idx.label == 0).sum()), int((tr_idx.label == 1).sum())
     w_real, w_fake = len(tr_idx) / (2 * max(n_real, 1)), len(tr_idx) / (2 * max(n_fake, 1))  # balance 1:4
-    tr_set = TrainSet(tr_idx, cache_dir, mode, cfg["img_size"], cfg["clip_len"], cfg["samples_per_video"], True, cfg["seed"])
+    tr_set = TrainSet(tr_idx, cache_dir, mode, cfg["img_size"], cfg["clip_len"], cfg["samples_per_video"], True, cfg["seed"],
+                      cfg["robust_aug"], cfg["robust_kinds"])
     va_set = VideoEvalSet(va_idx, cache_dir, mode, cfg["img_size"], cfg["clip_len"], cfg["eval_frames"])
     bs = cfg["batch_size"] if mode == "frame" else max(1, cfg["batch_size"] // cfg["clip_len"])
     print(f"train: {len(tr_idx)} videos ({n_real} real, {n_fake} fake) | val: {len(va_idx)} videos | "
